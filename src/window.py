@@ -160,13 +160,18 @@ class NectarWindow(Adw.ApplicationWindow):
         self._stack.set_visible_child_name("loading")
 
         def gen():
+            # Only generate here; the sqlite connection lives on the main
+            # thread, so caching happens in _cache_and_set via idle_add.
             puzzle = game.generate(date_str)
-            self._store.cache_puzzle(date_str, puzzle.letters,
-                                     list(puzzle.answers))
-            GLib.idle_add(self._set_puzzle, puzzle)
+            GLib.idle_add(self._cache_and_set, puzzle)
 
         threading.Thread(target=gen, daemon=True,
                          name="nectar-gen").start()
+
+    def _cache_and_set(self, puzzle):
+        self._store.cache_puzzle(puzzle.date, puzzle.letters,
+                                 list(puzzle.answers))
+        return self._set_puzzle(puzzle)
 
     def _set_puzzle(self, puzzle):
         self._puzzle = puzzle
