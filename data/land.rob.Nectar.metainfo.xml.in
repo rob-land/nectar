@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>land.rob.Nectar</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Nectar</name>
+  <summary>A daily honeycomb word game</summary>
+  <description>
+    <p>
+      Seven letters, one hive, one puzzle a day. Build words of four or
+      more letters that use the center letter; find the pangram that
+      uses all seven. Deterministic daily puzzles generated on-device
+      from a bundled dictionary - fully offline, no account, no server.
+    </p>
+    <p>
+      Adaptive: tap the hive on a Linux phone or type on a desktop
+      keyboard.
+    </p>
+  </description>
+  <launchable type="desktop-id">land.rob.Nectar.desktop</launchable>
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+  <recommends>
+    <control>touch</control>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </recommends>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-07-18"/>
+  </releases>
+</component>

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Nectar
+Comment=A daily honeycomb word game
+Exec=nectar
+Icon=land.rob.Nectar
+Terminal=false
+Type=Application
+Categories=Game;LogicGame;GNOME;GTK;
+Keywords=word;puzzle;spelling;bee;pangram;daily;
+X-Purism-FormFactor=Workstation;Mobile;
