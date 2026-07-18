@@ -6,6 +6,11 @@ configure_file(
   install_dir: get_option('datadir') / 'applications',
 )
 
+install_data(
+  'icons/land.rob.Nectar.svg',
+  install_dir: get_option('datadir') / 'icons' / 'hicolor' / 'scalable' / 'apps',
+)
+
 configure_file(
   input: 'land.rob.Nectar.metainfo.xml.in',
   output: 'land.rob.Nectar.metainfo.xml',

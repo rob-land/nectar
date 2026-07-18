@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="128" height="128" viewBox="0 0 128 128">
+  <!-- The 2-3-2 hive from the game board: six pale cells, honey center. -->
+  <defs>
+    <path id="cell"
+          d="M 0,-19 L 16.45,-9.5 L 16.45,9.5 L 0,19 L -16.45,9.5 L -16.45,-9.5 Z"
+          stroke-width="3" stroke-linejoin="round"/>
+  </defs>
+  <g stroke="#e5a50a">
+    <use xlink:href="#cell" x="46.5" y="34" fill="#f9f06b"/>
+    <use xlink:href="#cell" x="81.5" y="34" fill="#f9f06b"/>
+    <use xlink:href="#cell" x="29" y="64" fill="#f9f06b"/>
+    <use xlink:href="#cell" x="99" y="64" fill="#f9f06b"/>
+    <use xlink:href="#cell" x="46.5" y="94" fill="#f9f06b"/>
+    <use xlink:href="#cell" x="81.5" y="94" fill="#f9f06b"/>
+    <use xlink:href="#cell" x="64" y="64" fill="#f5c211"/>
+  </g>
+</svg>
