@@ -1,0 +1,120 @@
+name: Flatpak
+
+# Builds nectar natively for x86_64 and aarch64 (GitHub's free arm
+# runners — no qemu). On every push to main the per-arch OSTree repos
+# and .flatpak bundles are uploaded to the rolling `continuous`
+# release; the shared rob-land/flatpak-repo aggregator picks those up
+# (hourly cron or manual dispatch), merges every app, GPG-signs, and
+# publishes the combined repo to
+# https://rob-land.github.io/flatpak-repo/ — install from there.
+#
+# No secrets required here: signing happens only in the aggregator.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  APP_ID: land.rob.Nectar
+  MANIFEST: land.rob.Nectar.json
+  RUNTIME_VERSION: "48"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install flatpak-builder
+        run: |
+          sudo apt-get update
+          # appstream + librsvg2-common: flatpak-builder only composes
+          # appstream metadata when appstreamcli is present (install it
+          # on both arches for parity), and compose rasterises the
+          # scalable icon, which needs the SVG gdk-pixbuf loader.
+          sudo apt-get install -y --no-install-recommends \
+            flatpak flatpak-builder elfutils appstream librsvg2-common
+
+      - name: Install the GNOME runtime + SDK
+        run: |
+          flatpak remote-add --user --if-not-exists flathub \
+            https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user --noninteractive flathub \
+            org.gnome.Platform//${RUNTIME_VERSION} \
+            org.gnome.Sdk//${RUNTIME_VERSION}
+
+      - name: Cache flatpak-builder state
+        uses: actions/cache@v6
+        with:
+          path: .flatpak-builder
+          key: flatpak-builder-${{ matrix.arch }}-${{ hashFiles('land.rob.Nectar.json') }}
+          restore-keys: flatpak-builder-${{ matrix.arch }}-
+
+      - name: Build
+        run: |
+          flatpak-builder --user --arch=${{ matrix.arch }} --force-clean \
+            --disable-rofiles-fuse --repo=repo _flatpak "$MANIFEST"
+
+      - name: Bundle
+        run: |
+          flatpak build-bundle --arch=${{ matrix.arch }} repo \
+            "nectar-${{ matrix.arch }}.flatpak" "$APP_ID"
+
+      - name: Pack the OSTree repo for the publish job
+        run: tar -cf "repo-${{ matrix.arch }}.tar" -C repo .
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: nectar-${{ matrix.arch }}.flatpak
+          path: nectar-${{ matrix.arch }}.flatpak
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: repo-${{ matrix.arch }}
+          path: repo-${{ matrix.arch }}.tar
+
+  release:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: [build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          merge-multiple: true
+
+      - name: Update the rolling continuous release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create continuous --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --title "Continuous build" \
+            --notes "Rolling artifacts consumed by rob-land/flatpak-repo. Bundles are unsigned; prefer installing from the signed shared repo." \
+            --latest=false 2>/dev/null || true
+          gh release upload continuous --repo "$GITHUB_REPOSITORY" --clobber \
+            repo-x86_64.tar repo-aarch64.tar \
+            nectar-x86_64.flatpak nectar-aarch64.flatpak
+
+      - name: Nudge the aggregator (best-effort)
+        env:
+          GH_TOKEN: ${{ secrets.AGGREGATOR_DISPATCH_TOKEN }}
+        run: |
+          # Without the optional PAT the hourly cron picks the release
+          # up instead; this step just shortens the latency when a
+          # token with actions:write on rob-land/flatpak-repo exists.
+          [ -z "$GH_TOKEN" ] && { echo "no dispatch token — aggregator cron will pick this up"; exit 0; }
+          gh workflow run aggregate.yml --repo rob-land/flatpak-repo || true
