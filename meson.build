@@ -8,7 +8,8 @@ subdir('data')
 subdir('src')
 
 gnome = import('gnome')
+# No icon cache update: nectar doesn't install any icons (yet), and
+# gtk4-update-icon-cache fails on the missing hicolor directory.
 gnome.post_install(
-  gtk_update_icon_cache: true,
   update_desktop_database: true,
 )
