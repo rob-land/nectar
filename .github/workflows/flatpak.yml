@@ -23,7 +23,7 @@ concurrency:
 env:
   APP_ID: land.rob.Nectar
   MANIFEST: land.rob.Nectar.json
-  RUNTIME_VERSION: "48"
+  RUNTIME_VERSION: "50"
 
 jobs:
   build:
