@@ -18,6 +18,8 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 from . import game
 from .game import Puzzle
 
+EPOCH = datetime.date(2026, 7, 18)  # the first daily puzzle
+
 CSS = """
 .nectar-letter {
   font-size: 22px;
@@ -55,6 +57,7 @@ class NectarWindow(Adw.ApplicationWindow):
         self._found = []
         self._score = 0
         self._current = ""
+        self._pending_date = None
 
         provider = Gtk.CssProvider()
         provider.load_from_string(CSS)
@@ -69,6 +72,7 @@ class NectarWindow(Adw.ApplicationWindow):
         tv.add_top_bar(header)
 
         menu = Gio.Menu()
+        menu.append("Archive", "win.archive")
         menu.append("How to Play", "win.help")
         menu.append("About Nectar", "app.about")
         header.pack_end(Gtk.MenuButton(icon_name="open-menu-symbolic",
@@ -76,6 +80,14 @@ class NectarWindow(Adw.ApplicationWindow):
         help_action = Gio.SimpleAction.new("help", None)
         help_action.connect("activate", self._help)
         self.add_action(help_action)
+        archive_action = Gio.SimpleAction.new("archive", None)
+        archive_action.connect("activate", self._archive)
+        self.add_action(archive_action)
+
+        self._banner = Adw.Banner(button_label="Today")
+        self._banner.connect(
+            "button-clicked", lambda *_: self._load_date(self._today()))
+        tv.add_top_bar(self._banner)
 
         self._spinner_page = Adw.StatusPage(title="Mixing today's nectar…")
         spinner = Gtk.Spinner(spinning=True, width_request=32,
@@ -150,8 +162,15 @@ class NectarWindow(Adw.ApplicationWindow):
 
     # -- puzzle lifecycle -------------------------------------------------
 
+    @staticmethod
+    def _today():
+        return datetime.date.today().isoformat()
+
     def _load_today(self):
-        date_str = datetime.date.today().isoformat()
+        self._load_date(self._today())
+
+    def _load_date(self, date_str):
+        self._pending_date = date_str
         cached = self._store.cached_puzzle(date_str)
         if cached is not None:
             letters, answers = cached
@@ -171,7 +190,10 @@ class NectarWindow(Adw.ApplicationWindow):
     def _cache_and_set(self, puzzle):
         self._store.cache_puzzle(puzzle.date, puzzle.letters,
                                  list(puzzle.answers))
-        return self._set_puzzle(puzzle)
+        # Stale if the user picked another date while this generated.
+        if puzzle.date == self._pending_date:
+            self._set_puzzle(puzzle)
+        return GLib.SOURCE_REMOVE
 
     def _set_puzzle(self, puzzle):
         self._puzzle = puzzle
@@ -187,6 +209,13 @@ class NectarWindow(Adw.ApplicationWindow):
             self._add_chip(w)
         self._update_progress()
         self._update_word()
+        if puzzle.date == self._today():
+            self._banner.set_revealed(False)
+        else:
+            pretty = datetime.date.fromisoformat(puzzle.date)
+            self._banner.set_title(
+                "Archive · " + pretty.strftime("%A, %B %-d"))
+            self._banner.set_revealed(True)
         self._stack.set_visible_child_name("board")
         return GLib.SOURCE_REMOVE
 
@@ -283,6 +312,55 @@ class NectarWindow(Adw.ApplicationWindow):
 
     def _toast(self, text):
         self._toasts.add_toast(Adw.Toast.new(text))
+
+    def _archive(self, *_):
+        dlg = Adw.Dialog(title="Archive", content_width=380,
+                         content_height=520)
+        tv = Adw.ToolbarView()
+        tv.add_top_bar(Adw.HeaderBar())
+
+        day = datetime.date.today() - datetime.timedelta(days=1)
+        if day < EPOCH:
+            tv.set_content(Adw.StatusPage(
+                title="No Past Puzzles Yet",
+                description="The hive is brand new — come back tomorrow.",
+            ))
+            dlg.set_child(tv)
+            dlg.present(self)
+            return
+
+        found, totals = self._store.archive_summary()
+        listbox = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE,
+                              css_classes=["boxed-list"],
+                              margin_top=12, margin_bottom=12,
+                              margin_start=12, margin_end=12,
+                              valign=Gtk.Align.START)
+        while day >= EPOCH:
+            ds = day.isoformat()
+            n = found.get(ds, 0)
+            if not n:
+                sub = "Not played"
+            elif ds in totals:
+                sub = f"{n}/{totals[ds]} words found"
+            else:
+                sub = f"{n} words found"
+            row = Adw.ActionRow(title=day.strftime("%A, %B %-d, %Y"),
+                                subtitle=sub, activatable=True)
+            row.add_suffix(Gtk.Image.new_from_icon_name("go-next-symbolic"))
+            row._date = ds
+            listbox.append(row)
+            day -= datetime.timedelta(days=1)
+
+        def activated(_lb, row):
+            dlg.close()
+            if self._puzzle is None or row._date != self._puzzle.date:
+                self._load_date(row._date)
+
+        listbox.connect("row-activated", activated)
+        tv.set_content(Gtk.ScrolledWindow(
+            child=listbox, hscrollbar_policy=Gtk.PolicyType.NEVER))
+        dlg.set_child(tv)
+        dlg.present(self)
 
     def _help(self, *_):
         dlg = Adw.AlertDialog(

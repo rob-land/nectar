@@ -65,6 +65,19 @@ class Store:
         )
         self._con.commit()
 
+    def archive_summary(self):
+        """Two dicts keyed by ISO date: words found, and the answer
+        count for dates whose puzzle is already cached."""
+        found = {
+            r["date"]: r["n"] for r in self._con.execute(
+                "SELECT date, COUNT(*) AS n FROM found GROUP BY date")
+        }
+        totals = {
+            r["date"]: len(json.loads(r["answers"]))
+            for r in self._con.execute("SELECT date, answers FROM puzzles")
+        }
+        return found, totals
+
     def days_played(self):
         return self._con.execute(
             "SELECT COUNT(DISTINCT date) AS n FROM found"
